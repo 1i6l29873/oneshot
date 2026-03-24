@@ -1434,7 +1434,11 @@ if __name__ == '__main__':
                 if args.bssid:
                     companion = Companion(args.interface, args.write, print_debug=args.verbose)
                     if args.bruteforce:
-                        companion.smart_bruteforce(args.bssid, args.pin, args.delay)
+                        # 关键修改在这里
+                        # 只有当 args.pin 存在且非空时，才作为 start_pin 传递
+                        # 否则，传递 None，让函数内部决定是尝试恢复会话还是从头开始
+                        start_pin_value = args.pin if args.pin else None
+                        companion.smart_bruteforce(args.bssid, start_pin=start_pin_value, delay=args.delay)
                     else:
                         companion.single_connection(args.bssid, args.pin, args.pixie_dust, args.pbc,
                                                     args.show_pixie_cmd, args.pixie_force)
